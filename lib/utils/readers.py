@@ -21,7 +21,7 @@ class YamlReader(Reader):
     def read(path:Path) -> list[Rule]:
         with open(path) as f:
             rules: dict = yaml.safe_load(f)
-        return [Rule(name, **body) for name, body in rules.items()]
+        return [Rule(rule) for rule in rules]
     
     def __eq__(self, value):
         return value in self.suffix

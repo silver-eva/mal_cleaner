@@ -30,7 +30,7 @@ def get_args():
         "-d", "--debug", action="store_true", dest="debug", help="debug mode"
     )
     parser.add_argument(
-        "-s", "--scan", action="store_true", dest="scan", help="scan mode"
+        "-l", "--locate", action="store_true", dest="locate", help="locate mode"
     )
     parser.add_argument(
         "-r", "--remove", action="store_true", dest="remove", help="remove mode"
@@ -64,14 +64,14 @@ def get_args():
     elif not args.output.exists():
         args.output.mkdir(parents=True)
 
-    if args.remove and args.scan:
-        parser.error("Remove and scan mode can't be used together")
-    elif not args.remove and not args.scan:
+    if args.remove and args.locate:
+        parser.error("Remove and locate mode can't be used together")
+    elif not args.remove and not args.locate:
         args.mode = "rule"
     elif args.remove:
         args.mode = "remove"
-    elif args.scan:
-        args.mode = "scan"
+    elif args.locate:
+        args.mode = "locate"
 
     return args
 
