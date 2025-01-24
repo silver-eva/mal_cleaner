@@ -1,3 +1,3 @@
-from .producer import producer as Producer
-from .scanner import scanner as Scanner
-from .resulter import resulter as Resulter
+from .producer import Producer as Producer
+from .scanner import Scanner as Scanner
+from .resulter import Resulter as Resulter

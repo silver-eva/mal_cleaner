@@ -168,5 +168,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-configs/
-mc_out/
+rules/
+reports/
