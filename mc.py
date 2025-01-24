@@ -1,21 +1,30 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from multiprocessing import Process
+
 import argparse
 import os
 import sys
-from pathlib import Path
-import multiprocessing
 import time
+from multiprocessing import cpu_count
+from pathlib import Path
 
 from version import get_version
 from lib.utils.rules import read_rules
 from lib.workers import Producer, Scanner, Resulter
+from lib.models.communicate import Communicator
 
 def get_args():
+    cpus = cpu_count()
+
     parser = argparse.ArgumentParser(description="Malware Cleaner Tool")
     parser.add_argument(
         "-v", "--version", action="version", version=get_version()
     )
     parser.add_argument(
-        "-c", "--config", action="store", dest="config", help="config file", type=Path, default=Path(os.getcwd()).joinpath("configs/")
+        "-c", "--config", action="store", dest="config", help="rules path", type=Path, default=Path(os.getcwd()).joinpath("rules/")
     )
     parser.add_argument(
         "-d", "--debug", action="store_true", dest="debug", help="debug mode"
@@ -27,11 +36,11 @@ def get_args():
         "-r", "--remove", action="store_true", dest="remove", help="remove mode"
     )
     parser.add_argument(
-        "-o", "--output", action="store", dest="output", help="output dir", type=Path, default=Path(os.getcwd()).joinpath("mc_out/")
+        "-o", "--output", action="store", dest="output", help="output dir", type=Path, default=Path(os.getcwd()).joinpath("reports/")
     )
     parser.add_argument(
         "-t", "--threads", action="store", dest="threads", help="worker count, if 0 then maximum available", type=int, 
-        default=0, choices=[0, *range(1, multiprocessing.cpu_count() + 1)]
+        default=0, choices=[0, *range(1, cpus + 1)]
     )
     parser.add_argument(
         "path", action="store", help="path to scan", type=Path
@@ -40,11 +49,29 @@ def get_args():
     args = parser.parse_args(sys.argv[1:])
 
     if args.threads == 0:
-        cpus = multiprocessing.cpu_count()
         if cpus <= 2:
             cpus = 1
         else:
             args.threads = cpus - 2
+    
+    if not args.config.exists():
+        parser.error(f'Rules path [{args.input_dir}] is not exist')
+    
+    if args.output.exists() and any(args.output.iterdir()):
+        user_input = input(f"Output directory [{args.output}] is not empty. Continue? [y/n]: ")
+        if user_input.lower() != "y":
+            sys.exit(0)
+    elif not args.output.exists():
+        args.output.mkdir(parents=True)
+
+    if args.remove and args.scan:
+        parser.error("Remove and scan mode can't be used together")
+    elif not args.remove and not args.scan:
+        args.mode = "rule"
+    elif args.remove:
+        args.mode = "remove"
+    elif args.scan:
+        args.mode = "scan"
 
     return args
 
@@ -52,28 +79,22 @@ def main():
     args = get_args()
     # prepare rules
     rules = read_rules(args.config)
-    # scan
-    input_queue = multiprocessing.Queue()
-    output_queue = multiprocessing.Queue()
-    
-    producer = multiprocessing.Process(target=Producer, args=(input_queue, rules, args.threads))
-    producer.start()
+    comunicator = Communicator()
 
-    scanners: list[multiprocessing.Process] = []
+    # setup workers pool
+    workers: list[Process] = []
+    workers.append(Producer(comunicator, rules, args.threads))
     for _ in range(args.threads):
-        scanner = multiprocessing.Process(target=Scanner, args=(args.path, input_queue, output_queue))
-        scanner.start()
-        scanners.append(scanner)
+        workers.append(Scanner(args.path, comunicator))
+    workers.append(Resulter(comunicator, args.output, args.threads))
 
-    resulter = multiprocessing.Process(target=Resulter, args=(output_queue, args.output, args.threads))
-    resulter.start()
+    start = time.time()
 
-    producer.join()
-    for scanner in scanners:
-        scanner.join()
-    resulter.join()
+    for worker in workers:
+        worker.join()
+    
+    print(f"Time: {time.time() - start}")
 
 if __name__ == "__main__":
-    start = time.time()
     main()
-    print(f"Time: {time.time() - start}")
+    
