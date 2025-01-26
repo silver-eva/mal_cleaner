@@ -33,9 +33,6 @@ def get_args():
         "-l", "--locate", action="store_true", dest="locate", help="locate mode"
     )
     parser.add_argument(
-        "-r", "--remove", action="store_true", dest="remove", help="remove mode"
-    )
-    parser.add_argument(
         "-o", "--output", action="store", dest="output", help="output dir", type=Path, default=Path(os.getcwd()).joinpath("reports/")
     )
     parser.add_argument(
@@ -64,14 +61,10 @@ def get_args():
     elif not args.output.exists():
         args.output.mkdir(parents=True)
 
-    if args.remove and args.locate:
-        parser.error("Remove and locate mode can't be used together")
-    elif not args.remove and not args.locate:
-        args.mode = "rule"
-    elif args.remove:
-        args.mode = "remove"
-    elif args.locate:
+    if args.locate:
         args.mode = "locate"
+    else:
+        args.mode = "rule"
 
     return args
 
@@ -83,10 +76,10 @@ def main():
 
     # setup workers pool
     workers: list[Process] = []
-    workers.append(Producer(comunicator, rules, args.threads))
+    workers.append(Producer(comunicator, rules, args))
     for _ in range(args.threads):
-        workers.append(Scanner(args.path, comunicator))
-    workers.append(Resulter(comunicator, args.output, args.threads))
+        workers.append(Scanner(args, comunicator))
+    workers.append(Resulter(comunicator, args))
 
     start = time.time()
 
