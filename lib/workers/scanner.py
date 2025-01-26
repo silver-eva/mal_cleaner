@@ -3,24 +3,28 @@ from typing import TYPE_CHECKING
 
 import time
 from multiprocessing import Process
+import os
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from lib.models.rules import Rule
     from lib.models.communicate import Communicator
+    from argparse import Namespace
 
-def scanner(scan_dir: Path, communicator: Communicator):
+def scanner(args: Namespace, communicator: Communicator):
+    root_path = args.path
     while True:
         rule: Rule = communicator.rules.get()
         if rule is None:
             break
-        print(rule)
+        try:
+            rule.exec(root_path, args.mode)
+        except Exception as e:
+            print(rule, e.__class__.__name__, e)
         time.sleep(1)
-        communicator.output.put(f"Processed by {rule.name} in {scan_dir}")
+        communicator.output.put(f"Worker: {os.getpid()}:",f"{rule.name} - {rule.description} - {rule.author}")
     communicator.output.put(None)
 
-def Scanner(scan_dir: Path, communicator: Communicator) -> Process:
-    scanner_ = Process(target=scanner, args=(scan_dir, communicator))
+def Scanner(args: Namespace, communicator: Communicator) -> Process:
+    scanner_ = Process(target=scanner, args=(args, communicator))
     scanner_.start()
     return scanner_
